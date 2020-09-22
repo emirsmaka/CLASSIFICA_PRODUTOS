@@ -38,7 +38,7 @@ delete_tb_sql <- "TRUNCATE TABLE s904 -> [ugst_bebidas].[dbarantes].[TB_NFE_CLAS
 ###################################### FIM CARREGA OS DADOS PARA O R ######################################
 
 ######################################### CRIA FUNCOES UTILIZADAS #########################################
-source("./FUNCOES_CALCULO.R")
+source("./R/FUNCOES_CALCULO.R")
 
 ################################# CRIA COLUNAS PARA AJUSTES E COLUNAS DE APOIO ############################
 df_nfe_diaria <- fn_cria_col(df_nfe_diaria)

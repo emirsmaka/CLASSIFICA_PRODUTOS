@@ -39,13 +39,13 @@ fn_calc_min_max <- function(df_table,periodo){
 fn_sve_med <- function(df_table){
   tb_periodo <- df_table%>%
     distinct(IDE_DHEMI_PERIODO)
-  
+
   x<-nrow(tb_periodo)
   y<-0
-  
+
   for (i in 1:x) {
     y<-tb_periodo$IDE_DHEMI_PERIODO[i]
-    
+
     vet <- df_table%>%
       filter(IDE_DHEMI_PERIODO == y)
 
@@ -60,7 +60,7 @@ fn_sve_med <- function(df_table){
 fn_sve_ext <- function(df_table){
   tb_periodo <- df_table%>%
     distinct(IDE_DHEMI_PERIODO)
-  
+
   x<-nrow(tb_periodo)
   y<-0
   for (i in 1:x) {
@@ -77,10 +77,10 @@ fn_sve_ext <- function(df_table){
 fn_cria_col <- function(df_table){
   df_table$PROD_VUNCOM_AJUSTADO <- as.double(0.0)
   df_table$PROD_QCOM_AJUSTADO <- as.double(0.0)
-  df_table$PROD_UCOM_AJUSTADO <- as.character()
+  df_table$PROD_UCOM_AJUSTADO <- as.character("")
   df_table$VLR_UNITARIO_SEFAZ <- as.double(0.0)
   df_table$QTE_SEFAZ <- as.double(0.0)
-  df_table$UNIDADE_SEFAZ <- as.character()
+  df_table$UNIDADE_SEFAZ <- as.character("")
   df_table$VOLUME_SEFAZ <- as.double(0.0)
   df_table$VLR_MEDIO_SEFAZ <- as.double(0.0)
   df_table$VLR_MIN_SEFAZ <- as.double(0.0)
@@ -95,18 +95,18 @@ fn_ajusta_outliers <- function(df_table,df_table2){
   tb_vlrs_calc<-df_table%>%
     distinct(IDE_DHEMI_PERIODO, VLR_MEDIO_SEFAZ,VLR_MIN_SEFAZ,VLR_MAX_SEFAZ)%>%
     arrange(IDE_DHEMI_PERIODO)
-  
+
   vlrs_out<-anti_join(df_table2,df_table, by = c("IDNFE","DET_NITEM"))
-  
+
   x<-left_join(vlrs_out,tb_vlrs_calc,by = "IDE_DHEMI_PERIODO")
   x<-rename(x,VLR_MEDIO_SEFAZ = 'VLR_MEDIO_SEFAZ.y',VLR_MIN_SEFAZ = 'VLR_MIN_SEFAZ.y',VLR_MAX_SEFAZ = 'VLR_MAX_SEFAZ.y')
-  
+
   x$VLR_MEDIO_SEFAZ.x <- NULL
   x$VLR_MIN_SEFAZ.x <- NULL
   x$VLR_MAX_SEFAZ.x <- NULL
-  
+
   x <- rbind(df_table,x)
-  
+
   return(x)
 }
 ### FIM AJUSTE OUTLIERS ###
