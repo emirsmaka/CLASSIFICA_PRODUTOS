@@ -19,20 +19,20 @@ library(data.table)
 df_bebidas_nfe <- fread("./TB_REFRI_2017_CLASS.csv",quote = "",sep = ";")
 
 #### CRIA COLUNAS AJUSTADAS
-df_bebidas_nfe$QTE_TRIB_AJUSTADO <- as.character("")
-df_bebidas_nfe$VOLUME_TRIB_AJUSTADO <- as.character("")
-df_bebidas_nfe$VUNTRIB_AJUSTADO <- as.double(0.0000)
-df_bebidas_nfe$FATOR_MULTIPLICADOR <- as.double(0.0)
-df_bebidas_nfe$UNIDADE_SEFAZ <- as.character("UND")
-df_bebidas_nfe$VOLUME_SEFAZ <- as.double(0.0)
-df_bebidas_nfe$UN_MEDIDA_SEFAZ <- as.character("")
+df_refri$QTE_TRIB_AJUSTADO <- as.character("")
+df_refri$VOLUME_TRIB_AJUSTADO <- as.character("")
+df_refri$VUNTRIB_AJUSTADO <- as.double(0.0000)
+df_refri$FATOR_MULTIPLICADOR <- as.double(0.0)
+df_refri$UNIDADE_SEFAZ <- as.character("UND")
+df_refri$VOLUME_SEFAZ <- as.double(0.0)
+df_refri$UN_MEDIDA_SEFAZ <- as.character("")
 
 ########################################################
 
 
 
 ######## SEPARAR REFRIGERANTES (EXCLUI REGISTROS COM CPROD_REFRIGERANTE_SEFAZ == -9999999)
-df_refri <- df_bebidas_nfe%>%
+df_refri <- df_refri_dia_class%>%
   filter(CPROD_REFRIGERANTE_SEFAZ != -9999999)
 
 df_bebidas_nfe <- setdiff(df_bebidas_nfe,df_refri)
