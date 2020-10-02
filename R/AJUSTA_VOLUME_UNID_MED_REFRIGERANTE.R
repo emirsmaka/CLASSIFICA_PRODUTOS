@@ -16,7 +16,7 @@ library(data.table)
 
 ### CARREGA DADOS
 
-df_bebidas_nfe <- fread("./TB_REFRI_2017_CLASS.csv",quote = "",sep = ";")
+df_bebidas_nfe <- fread("./REFRIGERANTE2015_CLASS.csv",quote = "",sep = ";")
 
 #### CRIA COLUNAS AJUSTADAS
 df_refri$QTE_TRIB_AJUSTADO <- as.character("")
