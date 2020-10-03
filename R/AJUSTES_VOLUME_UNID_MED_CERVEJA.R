@@ -16,7 +16,7 @@ library(data.table)
 
 ### CARREGA DADOS
 
-df_cerveja <- fread("./CERVEJA2015_CLASS.csv",quote = "",sep = ";")
+df_cerveja <- fread("./CERVEJA2020_CLASS.csv",quote = "",sep = ";")
 
 #### CRIA COLUNAS AJUSTADAS
 df_cerveja[,"QTE_TRIB_AJUSTADO"] <- as.character()
@@ -28,13 +28,12 @@ df_cerveja[,"VOLUME_SEFAZ"] <- as.double()
 df_cerveja[,"UN_MEDIDA_SEFAZ"] <- as.character()
 ########################################################
 
-#  df_cerveja <- rename(df_cerveja,CPROD_CERVEJA_SEFAZ = "tb_resultado$predict")
-
   ######## SEPARAR CERVEJA (EXCLUI REGISTROS COM CPROD_CERVEJA_SEFAZ == -9999999)
   df_cerveja_ajuste <- df_cerveja%>%
     filter(CPROD_CERVEJA_SEFAZ != -9999999)
 
-  df_cerveja <- setdiff(df_cerveja,df_cerveja_ajuste)
+  df_nao_cerveja <- setdiff(df_cerveja,df_cerveja_ajuste)
+  ##rm(df_cerveja)
   ########################################################
 
   ### SEPARA REGISTROS COM VLAORES INTEIROS E ML EM XPROD
@@ -53,15 +52,15 @@ df_cerveja[,"UN_MEDIDA_SEFAZ"] <- as.character()
   ########################################################
 
   ### SEPARA REGISTROS COM VALORES SIMILIARES A LITRO E ML EM XPROD
-  id_litro <- grep("\\d{1,2}\\s?l",df_cerveja_ajuste$PROD_XPROD,ignore.case = T)
+  id_litro <- grep("\\d{1,3}\\s?l",df_cerveja_ajuste$PROD_XPROD,ignore.case = T)
   cerveja_litro <- df_cerveja_ajuste[id_litro]
   df_cerveja_ajuste <- setdiff(df_cerveja_ajuste,cerveja_litro)
 
-  cerveja_litro$VOLUME_TRIB_AJUSTADO <- str_extract(tolower(cerveja_litro$PROD_XPROD),"(\\d(\\,|\\.)\\d{1,3}\\s?l|\\d{1,2}\\s?l)")
-  cerveja_litro$VOLUME_TRIB_AJUSTADO <- str_extract(tolower(cerveja_litro$VOLUME_TRIB_AJUSTADO),"(\\d(\\,|\\.)\\d{1,3}|\\d)")
+  cerveja_litro$VOLUME_TRIB_AJUSTADO <- str_extract(tolower(cerveja_litro$PROD_XPROD),"\\d\\,\\d{1,3}\\s?l|\\d{1,3}\\s?l")
+  cerveja_litro$VOLUME_TRIB_AJUSTADO <- str_extract(cerveja_litro$VOLUME_TRIB_AJUSTADO,"\\d\\,\\d{1,3}|\\d{1,3}")
   cerveja_litro$VOLUME_TRIB_AJUSTADO <- str_replace(cerveja_litro$VOLUME_TRIB_AJUSTADO,",",".")
   cerveja_litro$VOLUME_TRIB_AJUSTADO <- as.double(cerveja_litro$VOLUME_TRIB_AJUSTADO)
-  cerveja_litro$VOLUME_TRIB_AJUSTADO <- ifelse(cerveja_litro$VOLUME_TRIB_AJUSTADO < 1, cerveja_litro$VOLUME_TRIB_AJUSTADO*1000,cerveja_litro$VOLUME_TRIB_AJUSTADO)
+  cerveja_litro$VOLUME_TRIB_AJUSTADO <- ifelse(cerveja_litro$VOLUME_TRIB_AJUSTADO < 1,cerveja_litro$VOLUME_TRIB_AJUSTADO*1000,cerveja_litro$VOLUME_TRIB_AJUSTADO)
   cerveja_litro$VOLUME_SEFAZ <- cerveja_litro$VOLUME_TRIB_AJUSTADO
   cerveja_litro$UN_MEDIDA_SEFAZ <- ifelse(cerveja_litro$VOLUME_SEFAZ > 99,"ML","L")
   ########################################################
@@ -92,7 +91,7 @@ df_cerveja[,"UN_MEDIDA_SEFAZ"] <- as.character()
   ##
   df_cerveja_sem_ajuste <- df_cerveja%>%
     filter(is.na(VOLUME_SEFAZ))
-  df_cerveja <- setdiff(df_cerveja,df_cerveja_sem_ajuste)
+  df_cerveja <- setdiff(df_cerveja,df_cerveja_sem_ajuste,id)
   ##
   df_cerveja_sem_ajuste$VOLUME_TRIB_AJUSTADO <- NA
   df_cerveja_sem_ajuste$VOLUME_SEFAZ <- NA
@@ -125,7 +124,7 @@ df_cerveja[,"UN_MEDIDA_SEFAZ"] <- as.character()
 
 
   ####### CHAMADA PARA SCRIPT AJUSTES VALOR,QTE E FATOR MULTIPLICADOR
-  source("./AJUSTA_QTE_VLR_FATOR_cerveja.R")
+  source("./AJUSTA_QTE_VLR_FATOR_CERVEJA.R")
 
 
 
