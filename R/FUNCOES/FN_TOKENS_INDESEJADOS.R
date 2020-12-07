@@ -1,8 +1,8 @@
 fn_token_indesejado <- function(x){
-  x <- as.character()
-  for (i in 1:length(word)) {
-    x[i] <- paste("\\<",word[i],"\\>",sep = "")
+  y <- as.character()
+  for (i in 1:length(x)) {
+    y[i] <- paste("\\<",x[i],"\\>",sep = "")
 
   }
-  return(x)
+  return(y)
 }
