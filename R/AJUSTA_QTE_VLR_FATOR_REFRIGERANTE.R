@@ -30,7 +30,7 @@ df_refrigerante[,"QTE_SEFAZ"] <- as.double()
 ########################################################
 
 
-### Seleciona qtrib definidos com duzias
+### PADRAO DUZIAS EM PROD_UCOM == "DZ/DU"
 id_dz <- grep("^dz|^du",df_refrigerante$PROD_UCOM,ignore.case = T)
 df_refrigerante$QTE_TRIB_AJUSTADO[id_dz] <- df_refrigerante$PROD_QCOM[id_dz] * 12
 df_refrigerante$FATOR_MULTIPLICADOR[id_dz] <- 12
@@ -145,7 +145,7 @@ rm(df_cx,df_cx_sem_ajuste,id_cx)
 gc(reset = T)
 ####################################
 
-##### PADROES EM PROD_XPROD PARA PROD_UCOM == "SX"
+##### PADROES EM PROD_XPROD PARA PROD_UCOM == "SX" (SiX) => 6 unidades
 id_sx <- grep("^sx$",df_refri_nao_ajustado$PROD_UCOM,ignore.case = T)
 df_sx <- df_refri_nao_ajustado[id_sx,]
 df_refri_nao_ajustado <- setdiff(df_refri_nao_ajustado,df_sx)
