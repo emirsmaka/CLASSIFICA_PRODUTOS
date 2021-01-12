@@ -57,8 +57,7 @@ rm(id_null)
 gc(reset = TRUE)
 
 
-#### REGEX IDENTIFICAR QTE_TRIB_AJUSTADO (QDO UNIDADE TRIB FOR CAIXA)
-
+#### REGEX PARA IDENTIFICAR PADRAO DE QTE EM XPROD
 id_m1 <- grep("[0-9]{1,3}(\\s)?x(\\s)?\\d\\d\\d",df_refri_nao_ajustado$PROD_XPROD,ignore.case = T) # cria indice dos padroes no data frame
 df_refri_m1 <- df_refri_nao_ajustado[id_m1,]
 df_refri_nao_ajustado <- setdiff(df_refri_nao_ajustado,df_refri_m1)
