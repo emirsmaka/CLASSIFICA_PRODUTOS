@@ -8,343 +8,238 @@
 ##  RESPONSAVEL: GERSON LUIZ DOS SANTOS                                      ##
 ###############################################################################
 
-setwd("C:/DADOS_R/Scripts")
+setwd("/home/local/FAZENDA/PROJETOS/CLASS_PROD")
 library(dplyr)
 library(data.table)
 library(bit64)
 library(stringr)
 library(RODBC)
+library(tidyverse)
 
-df_refrigerante <- fread("./refrigerante_2015e2016.csv",dec = ",",stringsAsFactors = T,integer64 = "numeric")
+########## ESTABELECE CONEXAO COM SERVER SQL ##########
+library(DBI)
+con <- dbConnect(odbc::odbc(), .connection_string = "Driver={ODBC Driver 17 for SQL Server};SERVER=s1670.ms\\itcsp01,1431;
+                 \nDATABASE=suporte_ia;\nUID=esmaka;\nPWD=11qw-SG9M",timeout = 10)
+#######################################################
 
-############# CRIA COLUNAS EXTRAS E DE APOIO#############
-df_refrigerante[,"QTE_TRIB_AJUSTADO"] <- as.character()
-df_refrigerante[,"VOLUME_TRIB_AJUSTADO"] <- as.character()
-df_refrigerante[,"VUNTRIB_AJUSTADO"] <- as.double()
-df_refrigerante[,"FATOR_MULTIPLICADOR"] <- as.double()
-df_refrigerante[,"UNIDADE_SEFAZ"] <- "UN"
-df_refrigerante[,"VOLUME_SEFAZ"] <- as.double()
-df_refrigerante[,"UN_MEDIDA_SEFAZ"] <- as.character()
-df_refrigerante[,"VLR_UNITARIO_SEFAZ"] <- as.double()
-df_refrigerante[,"QTE_SEFAZ"] <- as.double()
-########################################################
+######### LER DADOS PARA AJUSTES #########
+df_refrigerante <-  dbGetQuery(con, "SELECT IDNFE,DET_NITEM, CPROD_REFRIGERANTE_SEFAZ,PROD_XPROD,PROD_UCOM,PROD_QCOM,
+                                     PROD_VUNCOM,PROD_VPROD,FATOR_MULTIPLICADOR FROM TB_REFRIGERANTE_CLASS
+                                     WHERE IDE_DHEMI_PERIODO BETWEEN 202001 AND 202012")
+##########################################
+source("./SCRIPTS/FUNCOES/FN_CRIA_COLUNAS.R")
+#### CRIA COLUNAS DE APOIO
+df_refrigerante <- fn_cria_colunas(df_refrigerante)
+df_refrigerante$PROD_QCOM <- as.numeric(df_refrigerante$PROD_QCOM)
+############################
 
+df_nao_refri <- df_refrigerante%>%
+  filter(CPROD_REFRIGERANTE_SEFAZ == -9999999)
 
+df_refrigerante <- anti_join(df_refrigerante,df_nao_refri,by=c("IDNFE","DET_NITEM"))
+
+######################################## PADROES DE QTDE EM PROD_QCOM ########################################################
 ### PADRAO DUZIAS EM PROD_UCOM == "DZ/DU"
 id_dz <- grep("^dz|^du",df_refrigerante$PROD_UCOM,ignore.case = T)
-df_refrigerante$QTE_TRIB_AJUSTADO[id_dz] <- df_refrigerante$PROD_QCOM[id_dz] * 12
-df_refrigerante$FATOR_MULTIPLICADOR[id_dz] <- 12
+df_dz <- df_refrigerante[id_dz,]
+df_refrigerante <- anti_join(df_refrigerante,df_dz,by=c("IDNFE","DET_NITEM"))
+df_dz$FATOR_MULTIPLICADOR <- 12
+df_dz$QTE_SEFAZ <- df_dz$FATOR_MULTIPLICADOR * df_dz$PROD_QCOM
 rm(id_dz)
 
 ### Seleciona Padrao PROD_UCOM descrito como "cxdd" onde dd representa o  numero de unidades na embalagem
-
 id_cx<-grep("c[x]\\s?\\d{1,4}",df_refrigerante$PROD_UCOM, ignore.case = T)
-df_refrigerante$QTE_TRIB_AJUSTADO[id_cx]<- as.integer(str_extract(str_extract(tolower(df_refrigerante$PROD_UCOM[id_cx]),"c[x]\\s?\\d{1,4}$"),"[0-9]{1,4}")) * df_refrigerante$PROD_QCOM[id_cx]
-df_refrigerante$FATOR_MULTIPLICADOR[id_cx] <- as.double(str_extract(str_extract(tolower(df_refrigerante$PROD_UCOM[id_cx]),"c[x]\\s?\\d{1,4}$"),"[0-9]{1,4}"))
+df_cx <- df_refrigerante[id_cx,]
+df_refrigerante <- anti_join(df_refrigerante,df_cx,by=c("IDNFE","DET_NITEM"))
+df_cx$FATOR_MULTIPLICADOR <- as.double(str_extract(str_extract(tolower(df_cx$PROD_UCOM),"c[x]\\s?\\d{1,4}$"),"[0-9]{1,4}"))
+df_cx$QTE_SEFAZ<- df_cx$FATOR_MULTIPLICADOR * df_cx$PROD_QCOM
+rm(id_cx)
 
-### Seleciona qtrib definidos corretamente como unidade
-id_utrib<-  grep("^u|^lta|^lt|^lat|^ga|^gr|^gfa|grf|gf|pec|vd|tubo",df_refrigerante$PROD_UCOM,ignore.case = T)
-df_refrigerante$QTE_TRIB_AJUSTADO[id_utrib] <- df_refrigerante$PROD_QCOM[id_utrib]
-df_refrigerante$FATOR_MULTIPLICADOR[id_utrib] <- 1
-rm(id_utrib,id_cx)
+### PADRAO PROD_QCOM DECLARADO COMO 'UNdd' ONDE dd REPRESENTA A QTDE DE UNIDADES
+id_undd <- grep("un\\d{1,4}",df_refrigerante$PROD_UCOM,ignore.case = T)
+df_undd <- df_refrigerante[id_undd,]
+df_refrigerante <- anti_join(df_refrigerante,df_undd,by=c("IDNFE","DET_NITEM"))
+df_undd$FATOR_MULTIPLICADOR <- as.double(str_extract(str_extract(tolower(df_undd$PROD_UCOM),"un\\d{1,4}"),"\\d{1,4}"))
+df_undd$QTE_SEFAZ <- df_undd$FATOR_MULTIPLICADOR * df_undd$PROD_QCOM
+rm(id_undd)
 
+### PADRAO PROD_QCOM DECLARADO COMO 'UN..' ASSUME QUE A QUANTIDADE ESTEJA DECLARADA EM UNIDADES
+id_un <-  grep("^u",df_refrigerante$PROD_UCOM,ignore.case = T)
+df_un <- df_refrigerante[id_un,]
+df_refrigerante <- anti_join(df_refrigerante,df_un,by=c("IDNFE","DET_NITEM"))
+df_un$FATOR_MULTIPLICADOR <- 1
+df_un$QTE_SEFAZ <- df_un$FATOR_MULTIPLICADOR * df_un$QTE_SEFAZ
+rm(id_un)
 
-### SEPARA REGISTROS AJUSTADOS
-id_null <- ifelse(is.na(df_refrigerante$QTE_TRIB_AJUSTADO), TRUE,FALSE)
-df_refri_nao_ajustado <- df_refrigerante[id_null,]
-df_refrigerante <- setdiff(df_refrigerante,df_refri_nao_ajustado)
-rm(id_null)
-gc(reset = TRUE)
+### PADRAO DE REGISTROS 'SX' EM PROD_QCOM ==> SiX 6 UNIDADES
+id_sx <- grep("sx",df_refrigerante$PROD_UCOM,ignore.case = T)
+df_sx <- df_refrigerante[id_sx,]
+df_refrigerante <- anti_join(df_refrigerante,df_sx,by=c("IDNFE","DET_NITEM"))
+df_sx$FATOR_MULTIPLICADOR <- 6
+df_sx$QTE_SEFAZ <- df_sx$FATOR_MULTIPLICADOR * df_sx$PROD_QCOM
+rm(id_sx)
 
+### UNIFICA DATAFRAME COM COLUNAS AJUSTADAS A PARTIR DE PROD_QCOM
+df_refri_ajustado <- rbind(df_dz,df_cx,df_sx,df_un,df_undd)
+rm(df_dz,df_cx,df_sx,df_un,df_undd)
+###################################################################
 
-#### REGEX PARA IDENTIFICAR PADRAO DE QTE EM XPROD
-id_m1 <- grep("[0-9]{1,3}(\\s)?x(\\s)?\\d\\d\\d",df_refri_nao_ajustado$PROD_XPROD,ignore.case = T) # cria indice dos padroes no data frame
-df_refri_m1 <- df_refri_nao_ajustado[id_m1,]
-df_refri_nao_ajustado <- setdiff(df_refri_nao_ajustado,df_refri_m1)
-df_refri_m1$QTE_TRIB_AJUSTADO<- as.integer(str_extract(str_extract(tolower(df_refri_m1$PROD_XPROD),"[0-9]{1,3}(\\s)?x(\\s)?\\d\\d\\d"),"\\d{1,3}"))*df_refri_m1$PROD_QCOM
-df_refri_m1$FATOR_MULTIPLICADOR <- as.double(str_extract(str_extract(tolower(df_refri_m1$PROD_XPROD),"[0-9]{1,3}(\\s)?x(\\s)?\\d\\d\\d"),"\\d{1,3}"))
+#############################################################################################################################
+
+######################################## PADROES DE QTDE EM PROD_XPROD ######################################################
+id_un <- grep("\\s\\d{1,3}\\s?u",df_refrigerante$PROD_XPROD,ignore.case = T)
+df_un <- df_refrigerante[id_un,]
+df_refrigerante <- anti_join(df_refrigerante,df_un,by=c("IDNFE","DET_NITEM"))
+df_un$FATOR_MULTIPLICADOR <- as.double(str_extract(str_extract(tolower(df_un$PROD_XPROD),"\\s\\d{1,3}\\s?u"),"\\d{1,3}"))
+df_un$QTE_SEFAZ <- df_un$FATOR_MULTIPLICADOR * df_un$PROD_QCOM
+rm(id_un)
+
+#### REGEX PARA IDENTIFICAR PADRAO 999 X 999 EM XPROD
+id_qte <- grep("[1-9]{1,2}(\\s)?x(\\s)?\\d\\d\\d",df_refrigerante$PROD_XPROD,ignore.case = T) # cria indice dos padroes no data frame
+df_refri_qte <- df_refrigerante[id_qte,]
+df_refrigerante <- anti_join(df_refrigerante,df_refri_qte,by=c("IDNFE","DET_NITEM"))
+df_refri_qte$FATOR_MULTIPLICADOR <- as.double(str_extract(str_extract(tolower(df_refri_qte$PROD_XPROD),"[0-9]{1,3}(\\s)?x(\\s)?\\d\\d\\d"),"\\d{1,3}"))
+df_refri_qte$QTE_SEFAZ <- df_refri_qte$FATOR_MULTIPLICADOR * df_refri_qte$PROD_QCOM
+rm(id_qte)
+###################################################
+
 ###
-id_m2 <- grep("\\sx\\s(\\d\\d)\\d?\\s",df_refri_nao_ajustado$PROD_XPROD,ignore.case = T)
-df_refri_m2 <- df_refri_nao_ajustado[id_m2,]
-df_refri_nao_ajustado <- setdiff(df_refri_nao_ajustado,df_refri_m2)
-df_refri_m2$QTE_TRIB_AJUSTADO <- as.integer(str_extract(str_extract(tolower(df_refri_m2$PROD_XPROD),"\\sx\\s(\\d\\d)\\d?\\s"),"[0-9]{2}")) * df_refri_m2$PROD_QCOM
+id_m2 <- grep("\\sx\\s(\\d\\d)\\d?\\s",df_refrigerante$PROD_XPROD,ignore.case = T)
+df_refri_m2 <- df_refrigerante[id_m2,]
+df_refrigerante <- anti_join(df_refrigerante,df_refri_m2,by=c("IDNFE","DET_NITEM"))
 df_refri_m2$FATOR_MULTIPLICADOR <- as.double(str_extract(str_extract(tolower(df_refri_m2$PROD_XPROD),"\\sx\\s(\\d\\d)\\d?\\s"),"[0-9]{2}"))
-###
-id_m3 <- grep("\\sc[x]?(.)?\\d{1,4}",df_refri_nao_ajustado$PROD_XPROD,ignore.case = T)
-df_refri_m3 <- df_refri_nao_ajustado[id_m3,]
-df_refri_nao_ajustado <- setdiff(df_refri_nao_ajustado,df_refri_m3)
-df_refri_m3$QTE_TRIB_AJUSTADO <- as.integer(str_extract(str_extract(tolower(df_refri_m3$PROD_XPROD),"\\sc[x]?(.)?\\d{1,4}"),"[0-9]{1,4}")) * df_refri_m3$PROD_QCOM
+df_refri_m2$QTE_SEFAZ <- df_refri_m2$FATOR_MULTIPLICADOR  * df_refri_m2$PROD_QCOM
+rm(id_m2)
+###################################################
+
+id_m3 <- grep("\\sc[x]?(.)?\\d{1,4}",df_refrigerante$PROD_XPROD,ignore.case = T)
+df_refri_m3 <- df_refrigerante[id_m3,]
+df_refrigerante <- anti_join(df_refrigerante,df_refri_m3,by=c("IDNFE","DET_NITEM"))
 df_refri_m3$FATOR_MULTIPLICADOR <- as.double(str_extract(str_extract(tolower(df_refri_m3$PROD_XPROD),"\\sc[x]?(.)?\\d{1,4}"),"[0-9]{1,4}"))
+df_refri_m3$QTE_SEFAZ <-  df_refri_m3$FATOR_MULTIPLICADOR * df_refri_m3$PROD_QCOM
+rm(id_m3)
 ###
-df_refri_m <- rbind(df_refri_m1,df_refri_m2,df_refri_m3)
-rm(id_m1,id_m2,id_m3,df_refri_m1,df_refri_m2,df_refri_m3)
-####
 
-
-#### UNIFICA AS TABELAS SEPARADAS ACIMA
-df_refrigerante<-rbind(df_refrigerante,df_refri_m)
-rm(df_refri_m)
-####################################
-
+#### AGRUPA REGISTROS AJUSTADOS ####
+df_refri_ajustado <- rbind(df_refri_ajustado,df_refri_qte,df_refri_m2,df_refri_m3,df_un)
+rm(df_refri_qte,df_refri_m2,df_refri_m3,df_un)
+#####################################################
 
 ### Ajusta QTE_TRIB para outros padroes identificados (PCT ou PC)
-id_m4 <- grep("(pc|pct|pctc)(\\s)?([0-9]){1,3}",df_refri_nao_ajustado$PROD_XPROD,ignore.case = T)
-df_m4 <- df_refri_nao_ajustado[id_m4,]
-df_refri_nao_ajustado <- setdiff(df_refri_nao_ajustado,df_m4)
-df_m4$QTE_TRIB_AJUSTADO <- as.integer(str_extract(str_extract(tolower(df_m4$PROD_XPROD),"(pc|pct)(\\s)?([0-9]){1,3}"),"[0-9]{1,3}")) * df_m4$PROD_QCOM
+id_m4 <- grep("(pc|pct|pctc)(\\s)?([0-9]){1,3}",df_refrigerante$PROD_XPROD,ignore.case = T)
+df_m4 <- df_refrigerante[id_m4,]
+df_refrigerante <- anti_join(df_refrigerante,df_m4,by=c("IDNFE","DET_NITEM"))
 df_m4$FATOR_MULTIPLICADOR <- as.double(str_extract(str_extract(tolower(df_m4$PROD_XPROD),"(pc|pct)(\\s)?([0-9]){1,3}"),"[0-9]{1,3}"))
+df_m4$FATOR_MULTIPLICADOR <- ifelse(df_m4$FATOR_MULTIPLICADOR > 24, -1, df_m4$FATOR_MULTIPLICADOR)
+df_m4$QTE_SEFAZ <-ifelse(df_m4$FATOR_MULTIPLICADOR > 24, -1, df_m4$FATOR_MULTIPLICADOR * df_m4$PROD_QCOM)
 
-df_refrigerante <- rbind(df_refrigerante,df_m4)
-rm(df_m4,id_m4)
-####################################
+df_refri_ajustado <- rbind(df_refri_ajustado,df_m4)
+rm(id_m4,df_m4)
+####################################################
 
 ##### PADROES EM PROD_XPROD PARA PROD_UCOM == "CX"
-id_cx <- grep("^cx$",df_refri_nao_ajustado$PROD_UCOM,ignore.case = T)
-df_cx <- df_refri_nao_ajustado[id_cx,]
-df_refri_nao_ajustado <- setdiff(df_refri_nao_ajustado,df_cx)
+id_cx <- grep("^cx$",df_refrigerante$PROD_UCOM,ignore.case = T)
+df_cx <- df_refrigerante[id_cx,]
+df_refrigerante <- anti_join(df_refrigerante,df_cx,by=c("IDNFE","DET_NITEM"))
 
-df_cx$QTE_TRIB_AJUSTADO <- str_extract(tolower(df_cx$PROD_XPROD), "\\s\\d{1,2}\\s?un")
-df_cx$QTE_TRIB_AJUSTADO <- ifelse(is.na(df_cx$QTE_TRIB_AJUSTADO),str_extract(tolower(df_cx$PROD_XPROD),"\\d{1,2}\\s?pac"),df_cx$QTE_TRIB_AJUSTADO)
-df_cx$QTE_TRIB_AJUSTADO <- ifelse(is.na(df_cx$QTE_TRIB_AJUSTADO),str_extract(tolower(df_cx$PROD_XPROD),"\\d{1,2}\\s?x\\s?\\d{1,2}"),df_cx$QTE_TRIB_AJUSTADO)
-df_cx$QTE_TRIB_AJUSTADO <- ifelse(is.na(df_cx$QTE_TRIB_AJUSTADO),str_extract(tolower(df_cx$PROD_XPROD),"lt\\s?\\d{1,2}"),df_cx$QTE_TRIB_AJUSTADO)
-df_cx$QTE_TRIB_AJUSTADO <- ifelse(is.na(df_cx$QTE_TRIB_AJUSTADO),str_extract(df_cx$PROD_XPROD,"\\s(12|24)\\s"),df_cx$QTE_TRIB_AJUSTADO)
+i_cx1 <- grep("\\s\\d\\d\\s",df_cx$PROD_XPROD,ignore.case = T)
+df_cx1 <- df_cx[i_cx1,]
+df_cx <- anti_join(df_cx,df_cx1,by=c("IDNFE","DET_NITEM"))
 
-df_cx$FATOR_MULTIPLICADOR <- as.integer(str_extract(df_cx$QTE_TRIB_AJUSTADO,"\\d{1,2}"))
-df_cx$FATOR_MULTIPLICADOR <- ifelse(df_cx$FATOR_MULTIPLICADOR > 24,NA,df_cx$FATOR_MULTIPLICADOR)
-df_cx$QTE_TRIB_AJUSTADO <- df_cx$FATOR_MULTIPLICADOR * df_cx$PROD_QCOM
 
-df_cx_sem_ajuste <- df_cx%>%
-  filter(is.na(FATOR_MULTIPLICADOR))
+i_cx2 <- grep("\\d{1,2}\\s?pack|\\d{1,2}\\s?p(\\s|$)",df_cx$PROD_XPROD,ignore.case = T)
+df_cx2 <- df_cx[i_cx2,]
+df_cx <- anti_join(df_cx,df_cx2,by=c("IDNFE","DET_NITEM"))
 
-df_cx <- setdiff(df_cx,df_cx_sem_ajuste)
+i_cx3 <- grep("(\\d\\dx\\d)|\\dx\\d\\s?l",df_cx$PROD_XPROD,ignore.case = T)
+df_cx3 <- df_cx[i_cx3,]
+df_cx <- anti_join(df_cx,df_cx3,by=c("IDNFE","DET_NITEM"))
+
+i_cx4 <- grep("c\\/\\d\\d?|cx\\s?\\d\\d?",df_cx$PROD_XPROD,ignore.case = T)
+df_cx4 <- df_cx[i_cx4,]
+df_cx <- anti_join(df_cx,df_cx4,by=c("IDNFE","DET_NITEM"))
+
+rm(i_cx1,i_cx2,i_cx3,i_cx4,id_cx)
+
+df_cx1$FATOR_MULTIPLICADOR <- as.double(str_extract(df_cx1$PROD_XPROD,"\\s\\d\\d\\s"))
+df_cx1$QTE_SEFAZ <- df_cx1$FATOR_MULTIPLICADOR * df_cx1$PROD_QCOM
+
+df_cx2$FATOR_MULTIPLICADOR <- as.double(str_extract(str_extract(tolower(df_cx2$PROD_XPROD),"\\d{1,2}\\s?pack|\\d{1,2}\\s?p(\\s|$)"),"\\d{1,2}"))
+df_cx2$QTE_SEFAZ <- df_cx2$FATOR_MULTIPLICADOR * df_cx2$PROD_QCOM
+
+df_cx3$FATOR_MULTIPLICADOR <- as.double(str_extract(str_extract(str_extract(tolower(df_cx3$PROD_XPROD),"(\\d\\dx\\d)|\\dx\\d\\s?l"),"\\d{1,2}x"),"\\d{1,2}"))
+df_cx3$QTE_SEFAZ <- df_cx3$FATOR_MULTIPLICADOR * df_cx3$PROD_QCOM
+
+df_cx4$FATOR_MULTIPLICADOR <- as.double(str_extract(str_extract(tolower(df_cx4$PROD_XPROD),"c\\/\\d\\d?|cx\\s?\\d\\d?"),"\\d{1,2}"))
+df_cx4$QTE_SEFAZ <- df_cx4$FATOR_MULTIPLICADOR * df_cx4$PROD_QCOM
+
+df_cxN <- rbind(df_cx1,df_cx2,df_cx3,df_cx4)
+df_refri_ajustado <- rbind(df_refri_ajustado,df_cxN)
+
+rm(df_cx1,df_cx2,df_cx3,df_cx4,df_cxN)
+gc(reset = T)
+
 df_refrigerante <- rbind(df_refrigerante,df_cx)
-df_refri_nao_ajustado <- rbind(df_refri_nao_ajustado,df_cx_sem_ajuste)
+rm(df_cx)
+######################################################################################
 
-rm(df_cx,df_cx_sem_ajuste,id_cx)
+### PADRAO COM QTEXVOLUME
+id_qte <- grep("\\s\\d\\d?x\\d(\\s|$)",df_refrigerante$PROD_XPROD,ignore.case = T)
+df_qte <- df_refrigerante[id_qte,]
+df_refrigerante <- anti_join(df_refrigerante,df_qte,by=c("IDNFE","DET_NITEM"))
+df_qte$FATOR_MULTIPLICADOR <- as.double(str_extract(str_extract(tolower(df_qte$PROD_XPROD),"\\s\\d\\d?x\\d(\\s|$)"),"\\d{1,2}"))
+df_qte$QTE_SEFAZ <- df_qte$FATOR_MULTIPLICADOR * df_qte$PROD_QCOM
+rm(id_qte)
+######################################################################################
+
+### PADROES DIVERSOS ENCONTRADOS EM PROD_XPROD
+id_dv1 <- grep("lt\\s?\\d{1,2}(\\s|x)",df_refrigerante$PROD_XPROD, ignore.case = T)
+df_dv1 <- df_refrigerante[id_dv1,]
+df_refrigerante <- anti_join(df_refrigerante,df_dv1,by=c("IDNFE","DET_NITEM"))
+df_dv1$FATOR_MULTIPLICADOR <- as.double(str_extract(str_extract(tolower(df_dv1$PROD_XPROD),"lt\\s?\\d{1,2}(\\s|x)"),"\\d{1,2}"))
+df_dv1$QTE_SEFAZ <- df_dv1$FATOR_MULTIPLICADOR * df_dv1$PROD_QCOM
+
+
+id_dv2 <- grep("\\d{1,2}\\s?x\\s?\\d{1,2}",df_refrigerante$PROD_XPROD,ignore.case = T)
+df_dv2 <- df_refrigerante[id_dv2,]
+df_refrigerante <- anti_join(df_refrigerante,df_dv2,by=c("IDNFE","DET_NITEM"))
+p1 <- as.double(str_extract(str_extract(tolower(df_dv2$PROD_XPROD),"\\d{1,2}\\s?x"),"\\d{1,2}"))
+p2 <- as.double(str_extract(str_extract(tolower(df_dv2$PROD_XPROD),"x\\s?\\d{1,2}"),"\\d{1,2}"))
+df_dv2$FATOR_MULTIPLICADOR <- ifelse(p1>=p2,p1,p2)
+df_dv2$QTE_SEFAZ <- df_dv2$FATOR_MULTIPLICADOR * df_dv2$PROD_QCOM
+
+## UNIR DATAFRAMES AJUSTADOS
+df_refri_ajustado <- rbind(df_refri_ajustado,df_qte,df_dv1,df_dv2)
+rm(df_qte,df_dv1,df_dv2,id_dv1,id_dv2,p1,p2)
+######################################################################################
+
+#### PADROES NUMERICOS INDICANDO EMBALAGENS COM 6,12 E 24 UNIDADES
+id_emb <- grep("\\<6\\>|\\<06\\>|\\<12\\>|\\<24\\>|\\<lt12\\>|\\<lt6\\>",df_refrigerante$PROD_XPROD,ignore.case = T)
+df_emb <- df_refrigerante[id_emb,]
+df_refrigerante <- anti_join(df_refrigerante,df_emb,by=c("IDNFE","DET_NITEM"))
+id_gr <- grep("gr",df_emb$PROD_UCOM,ignore.case = T)
+df_gr <- df_emb[id_gr,]
+df_emb <- anti_join(df_emb,df_gr,by=c("IDNFE","DET_NITEM"))
+
+df_emb$FATOR_MULTIPLICADOR <- as.double(str_extract(str_extract(tolower(df_emb$PROD_XPROD),"6|06|12|24|lt12|lt6"),"\\d{1,2}"))
+df_emb$QTE_SEFAZ <- df_emb$FATOR_MULTIPLICADOR * df_emb$PROD_QCOM
+
+df_gr$FATOR_MULTIPLICADOR <- 1
+df_gr$QTE_SEFAZ <- df_gr$FATOR_MULTIPLICADOR * df_gr$PROD_QCOM
+
+df_refri_ajustado <- rbind(df_refri_ajustado,df_emb,df_gr)
+df_refri_ajustado$VLR_UNITARIO_SEFAZ <- df_refri_ajustado$PROD_VPROD / df_refri_ajustado$QTE_SEFAZ
+rm(df_emb,df_gr,id_emb,id_gr)
 gc(reset = T)
-####################################
+######################################################################################
+df_refrigerante <- rbind(df_refrigerante,df_nao_refri)
+df_refrigerante$FATOR_MULTIPLICADOR <- -1
+df_refrigerante$QTE_SEFAZ <- -1
+df_refrigerante$VLR_UNITARIO_SEFAZ <- -1
 
-
-##### PADROES EM PROD_XPROD PARA PROD_UCOM == "CX" (NAO ENCONTRADOS ANTERIORMENTE)
-id_cx <- grep("^cx$",df_refri_nao_ajustado$PROD_UCOM,ignore.case = T)
-df_cx <- df_refri_nao_ajustado[id_cx,]
-df_refri_nao_ajustado <- setdiff(df_refri_nao_ajustado,df_cx)
-
-df_cx$QTE_TRIB_AJUSTADO <- str_extract(df_cx$PROD_XPROD,"\\s12|\\s24")
-df_cx$FATOR_MULTIPLICADOR <- as.integer(df_cx$QTE_TRIB_AJUSTADO)
-df_cx$QTE_TRIB_AJUSTADO <- df_cx$FATOR_MULTIPLICADOR * df_cx$PROD_QCOM
-
-df_cx_sem_ajuste <- df_cx%>%
-  filter(is.na(FATOR_MULTIPLICADOR))
-
-df_cx <- setdiff(df_cx,df_cx_sem_ajuste)
-df_refrigerante <- rbind(df_refrigerante,df_cx)
-df_refri_nao_ajustado <- rbind(df_refri_nao_ajustado,df_cx_sem_ajuste)
-rm(df_cx,df_cx_sem_ajuste,id_cx)
+#### UNIFICA AS TABELAS
+df_refrigerante <- rbind(df_refrigerante,df_refri_ajustado)
+rm(df_refri_ajustado,df_nao_refri)
 gc(reset = T)
-####################################
-
-##### PADROES EM PROD_XPROD PARA PROD_UCOM == "SX" (SiX) => 6 unidades
-id_sx <- grep("^sx$",df_refri_nao_ajustado$PROD_UCOM,ignore.case = T)
-df_sx <- df_refri_nao_ajustado[id_sx,]
-df_refri_nao_ajustado <- setdiff(df_refri_nao_ajustado,df_sx)
-
-# SEPARA PADRAO 99 x 99 EM PROD_XPROD
-df_sx$QTE_TRIB_AJUSTADO <- str_extract(tolower(df_sx$PROD_XPROD),"\\d{1,2}\\s?x\\s?\\d{1,2}")
-p1 <- str_extract(str_extract(tolower(df_sx$QTE_TRIB_AJUSTADO),"\\d{1,2}\\s?x"),"\\d{1,2}")
-p2 <- str_extract(str_extract(tolower(df_sx$QTE_TRIB_AJUSTADO),"x\\s?\\d{1,2}"),"\\d{1,2}")
-df_sx$FATOR_MULTIPLICADOR <- as.integer(ifelse(p1 > p2,p1,p2))
-df_sx$QTE_TRIB_AJUSTADO <- df_sx$FATOR_MULTIPLICADOR * df_sx$PROD_QCOM
-
-id_un <- grep("\\d{1,2}\\s?un",df_sx$PROD_XPROD,ignore.case = T)
-df_sx$QTE_TRIB_AJUSTADO[id_un] <-str_extract(tolower(df_sx$PROD_XPROD[id_un]),"\\d{1,2}\\s?un")
-df_sx$FATOR_MULTIPLICADOR[id_un] <- as.integer(str_extract(df_sx$QTE_TRIB_AJUSTADO[id_un],"\\d{1,2}"))
-df_sx$QTE_TRIB_AJUSTADO[id_un] <- as.integer(df_sx$FATOR_MULTIPLICADOR[id_un] ) * df_sx$PROD_QCOM[id_un]
-
-df_refrigerante <- rbind(df_refrigerante,df_sx)
-rm(id_sx,id_un,df_sx,p1,p2)
-gc(reset = T)
-####################################
-
-##### PADRAO PARA PROD_XPROD == "99 X 99"
-id_xprd <- grep("\\d{1,2}\\s?x\\s?\\d{1,2}",df_refri_nao_ajustado$PROD_XPROD,ignore.case = T)
-df_xprd <- df_refri_nao_ajustado[id_xprd,]
-df_refri_nao_ajustado <- setdiff(df_refri_nao_ajustado,df_xprd)
-
-df_xprd$QTE_TRIB_AJUSTADO <- str_extract(tolower(df_xprd$PROD_XPROD),"\\d{1,2}\\s?x\\s?\\d{1,2}")
-p1 <- str_extract(str_extract(tolower(df_xprd$QTE_TRIB_AJUSTADO),"\\d{1,2}\\s?x"),"\\d{1,2}")
-p2 <- str_extract(str_extract(tolower(df_xprd$QTE_TRIB_AJUSTADO),"x\\s?\\d{1,2}"),"\\d{1,2}")
-df_xprd$FATOR_MULTIPLICADOR <- as.integer(ifelse(p1 > p2,p1,p2))
-df_xprd$QTE_TRIB_AJUSTADO <- df_xprd$FATOR_MULTIPLICADOR * df_xprd$PROD_QCOM
-
-df_refrigerante <- rbind(df_refrigerante,df_xprd)
-rm(id_xprd,df_xprd,p1,p2)
-gc(reset = T)
-####################################
-
-##### PADRAO PARA PROD_XPROD == "99 UN"
-id_un <- grep("\\d\\s?un",df_refri_nao_ajustado$PROD_XPROD,ignore.case = T)
-df_un <- df_refri_nao_ajustado[id_un,]
-df_refri_nao_ajustado <- setdiff(df_refri_nao_ajustado,df_un)
-
-df_un$QTE_TRIB_AJUSTADO <- str_extract(tolower(df_un$PROD_XPROD),"\\d\\s?un")
-df_un$FATOR_MULTIPLICADOR <- as.integer(str_extract(df_un$QTE_TRIB_AJUSTADO,"\\d{1,2}"))
-df_un$QTE_TRIB_AJUSTADO <- df_un$FATOR_MULTIPLICADOR * df_un$PROD_QCOM
-
-df_refrigerante <- rbind(df_refrigerante,df_un)
-rm(id_un,df_un)
-gc(reset = T)
-####################################
-
-##### PADRAO PARA PROD_XPROD == "\\d{1,2}\\s?u"
-id_un <- grep("\\d{1,2}\\s?u\\s",df_refri_nao_ajustado$PROD_XPROD,ignore.case = T)
-df_un <- df_refri_nao_ajustado[id_un,]
-df_refri_nao_ajustado <- setdiff(df_refri_nao_ajustado,df_un)
-
-df_un$QTE_TRIB_AJUSTADO <- str_extract(tolower(df_un$PROD_XPROD),"\\d{1,2}\\s?u\\s")
-df_un$FATOR_MULTIPLICADOR <- as.integer(str_extract(df_un$QTE_TRIB_AJUSTADO,"\\d{1,2}"))
-df_un$FATOR_MULTIPLICADOR <- ifelse(df_un$FATOR_MULTIPLICADOR > 24,NA,df_un$FATOR_MULTIPLICADOR)
-df_un$QTE_TRIB_AJUSTADO <- as.integer(df_un$FATOR_MULTIPLICADOR) * df_un$PROD_QCOM
-
-df_refrigerante <- rbind(df_refrigerante,df_un)
-rm(df_un,id_un)
-gc(reset = T)
-####################################
-
-##### PADROES ENCONTRADOS EM XPROD FILTRANDO UCOM = "CX"
-df_cx <- df_refri_nao_ajustado%>%
-  filter(PROD_UCOM == "CX")
-df_refri_nao_ajustado <- setdiff(df_refri_nao_ajustado,df_cx)
-
-id_cx1 <- grep("\\(\\d{1,2}\\)",df_cx$PROD_XPROD,ignore.case = T)
-df_cx$QTE_TRIB_AJUSTADO[id_cx1] <- str_extract(tolower(df_cx$PROD_XPROD[id_cx1]),"\\(\\d{1,2}\\)")
-df_cx$FATOR_MULTIPLICADOR[id_cx1] <- as.integer(str_extract(df_cx$QTE_TRIB_AJUSTADO[id_cx1],"\\d{1,2}"))
-df_cx$QTE_TRIB_AJUSTADO[id_cx1] <- df_cx$FATOR_MULTIPLICADOR[id_cx1] * df_cx$PROD_QCOM[id_cx1]
-
-id_cx2 <- grep("\\d{1,2}(u|p)",df_cx$PROD_XPROD,ignore.case = T)
-df_cx$QTE_TRIB_AJUSTADO[id_cx2] <- str_extract(tolower(df_cx$PROD_XPROD[id_cx2]),"\\d{1,2}(u|p)")
-df_cx$FATOR_MULTIPLICADOR[id_cx2] <- as.integer(str_extract(df_cx$QTE_TRIB_AJUSTADO[id_cx2],"\\d{1,2}"))
-df_cx$QTE_TRIB_AJUSTADO[id_cx2] <- df_cx$FATOR_MULTIPLICADOR[id_cx2] * df_cx$PROD_QCOM[id_cx2]
-
-df_cx_sem_ajuste <- df_cx%>%
-  filter(is.na(FATOR_MULTIPLICADOR))
-df_refri_nao_ajustado <- rbind(df_refri_nao_ajustado,df_cx_sem_ajuste)
-
-df_cx <- setdiff(df_cx,df_cx_sem_ajuste)
-df_refrigerante <- rbind(df_refrigerante,df_cx)
-rm(df_cx,df_cx_sem_ajuste,id_cx1,id_cx2)
-gc(reset = T)
-####################################
-
-##### PADROES EM Q A QTE ESTA EM PROD_UCOM
-id_un <- grep("(pct|fd|am)\\d{1,4}",df_refri_nao_ajustado$PROD_UCOM,ignore.case = T)
-df_un <- df_refri_nao_ajustado[id_un,]
-df_refri_nao_ajustado <- setdiff(df_refri_nao_ajustado,df_un)
-
-df_un$FATOR_MULTIPLICADOR <- as.integer(str_extract(df_un$PROD_UCOM,"\\d{1,4}"))
-df_un$FATOR_MULTIPLICADOR <- ifelse(df_un$FATOR_MULTIPLICADOR >= 4,df_un$FATOR_MULTIPLICADOR,NA)
-df_un$QTE_TRIB_AJUSTADO <- df_un$FATOR_MULTIPLICADOR * df_un$PROD_QCOM
-
-df_refrigerante <- rbind(df_refrigerante,df_un)
-rm(df_un,id_un)
-gc(reset = T)
-####################################
-
-##### PADROES ENCONTRADOS EM PROD_XPROD
-id_1 <- grep("\\(\\d{1,2}\\)",df_refri_nao_ajustado$PROD_XPROD,ignore.case = T)
-df_1 <- df_refri_nao_ajustado[id_1,]
-df_refri_nao_ajustado <- setdiff(df_refri_nao_ajustado,df_1)
-
-df_1$QTE_TRIB_AJUSTADO <- str_extract(tolower(df_1$PROD_XPROD),"\\(\\d{1,2}\\)")
-df_1$FATOR_MULTIPLICADOR <- as.integer(str_extract(df_1$QTE_TRIB_AJUSTADO,"\\d{1,2}"))
-df_1$QTE_TRIB_AJUSTADO <- df_1$FATOR_MULTIPLICADOR * df_1$PROD_QCOM
-df_refrigerante <- rbind(df_refrigerante,df_1)
-
-id_2 <- grep("(fd\\s?|c\\/\\s?)\\d{1,2}",df_refri_nao_ajustado$PROD_XPROD,ignore.case = T)
-df_2 <- df_refri_nao_ajustado[id_2,]
-df_refri_nao_ajustado <- setdiff(df_refri_nao_ajustado,df_2)
-
-df_2$QTE_TRIB_AJUSTADO <- str_extract(tolower(df_2$PROD_XPROD),"(fd\\s?|c\\/\\s?)\\d{1,2}")
-df_2$FATOR_MULTIPLICADOR <- as.integer(str_extract(df_2$QTE_TRIB_AJUSTADO,"\\d{1,4}"))
-df_2$FATOR_MULTIPLICADOR <- ifelse(df_2$FATOR_MULTIPLICADOR < 4 | df_2$FATOR_MULTIPLICADOR > 24, NA,df_2$FATOR_MULTIPLICADOR)
-df_2$QTE_TRIB_AJUSTADO <- df_2$FATOR_MULTIPLICADOR * df_2$PROD_QCOM
-df_refrigerante <- rbind(df_refrigerante,df_2)
-
-rm(df_2,df_1,id_2,id_1)
-gc(reset = T)
-####################################
-
-df_refrigerante <- rbind(df_refrigerante,df_refri_nao_ajustado)
-rm(df_refri_nao_ajustado)
-
-##### PADROES EM XPROD NAO IDENTIFICADOS ACIMA
-df_refri_nao_ajustado <- df_refrigerante%>%
-  filter(is.na(FATOR_MULTIPLICADOR))
-df_refrigerante <- setdiff(df_refrigerante,df_refri_nao_ajustado)
-
-i1 <- grep("(\\d{1,2}\\s?u|\\(\\d{1,2}\\))",df_refri_nao_ajustado$PROD_XPROD,ignore.case = T)
-df_i1 <- df_refri_nao_ajustado[i1,]
-df_refri_nao_ajustado <- setdiff(df_refri_nao_ajustado,df_i1)
-df_i1$QTE_TRIB_AJUSTADO <- str_extract(tolower(df_i1$PROD_XPROD),"(\\d{1,3}\\s?u|\\(\\d{1,2}\\))")
-df_i1$FATOR_MULTIPLICADOR <- as.integer(str_extract(df_i1$QTE_TRIB_AJUSTADO,"\\d{1,3}"))
-df_i1$FATOR_MULTIPLICADOR <- ifelse(df_i1$FATOR_MULTIPLICADOR > 12 | df_i1$FATOR_MULTIPLICADOR < 1,NA,df_i1$FATOR_MULTIPLICADOR)
-df_i1$QTE_TRIB_AJUSTADO <- df_i1$FATOR_MULTIPLICADOR * df_i1$PROD_QCOM
-
-i2 <- grep("\\d{1,2}\\*",df_refri_nao_ajustado$PROD_XPROD)
-df_i2 <- df_refri_nao_ajustado[i2,]
-df_refri_nao_ajustado <- setdiff(df_refri_nao_ajustado,df_i2)
-df_i2$QTE_TRIB_AJUSTADO <- str_extract(df_i2$PROD_XPROD,"\\d{1,2}\\*")
-df_i2$FATOR_MULTIPLICADOR <- as.integer(str_extract(df_i2$QTE_TRIB_AJUSTADO,"\\d{1,2}"))
-df_i2$FATOR_MULTIPLICADOR <-ifelse(df_i2$FATOR_MULTIPLICADOR > 24 | df_i2$FATOR_MULTIPLICADOR < 1,NA,df_i2$FATOR_MULTIPLICADOR)
-df_i2$QTE_TRIB_AJUSTADO <- df_i2$FATOR_MULTIPLICADOR * df_i2$PROD_QCOM
-
-df_refrigerante <- rbind(df_refrigerante,df_i1,df_i2)
-rm(i1,i2,df_i1,df_i2)
-gc(reset = T)
-####################################
-
-
-##### PADROES COM PROD_VUNCOM / PROD_VUNTRIB > 1 E COM RESTO == 0 => FATOR_MULTIPLICADOR
-df_vlr <- df_refri_nao_ajustado%>%
-  filter(PROD_VUNTRIB < PROD_VUNCOM)
-df_refri_nao_ajustado <- setdiff(df_refri_nao_ajustado,df_vlr)
-
-df_vlr$FATOR_MULTIPLICADOR <- ifelse(df_vlr$PROD_VUNCOM%%df_vlr$PROD_VUNTRIB != 0 ,NA,df_vlr$PROD_VUNCOM/df_vlr$PROD_VUNTRIB)
-
-df_vlr_sem_ajuste <- df_vlr%>%
-  filter(is.na(df_vlr$FATOR_MULTIPLICADOR))
-
-df_vlr <- setdiff(df_vlr,df_vlr_sem_ajuste)
-df_vlr$QTE_TRIB_AJUSTADO <- df_vlr$FATOR_MULTIPLICADOR * df_vlr$PROD_QCOM
-
-df_refri_nao_ajustado <- rbind(df_refri_nao_ajustado,df_vlr_sem_ajuste)
-df_refrigerante <- rbind(df_refrigerante,df_vlr)
-
-rm(df_vlr,df_vlr_sem_ajuste)
-gc(reset = T)
-####################################
-
-##### PADRAO "SX" EM PROD_UCOM - SX = "SIX" 6 UNIDADES POR EMBALAGEM
-id_sx <- grep("sx",df_refri_nao_ajustado$PROD_UCOM,ignore.case = T)
-df_sx <- df_refri_nao_ajustado[id_sx,]
-df_refri_nao_ajustado <- setdiff(df_refri_nao_ajustado,df_sx)
-
-df_sx$FATOR_MULTIPLICADOR <- 6
-df_sx$QTE_TRIB_AJUSTADO <- df_sx$FATOR_MULTIPLICADOR * df_sx$PROD_QCOM
-df_refrigerante <- rbind(df_refrigerante,df_sx)
-
-rm(id_sx,df_sx)
-gc(reset = T)
-####################################
-
-##### AJUSTA COLUNAS QTE_SEFAZ E VLR_UNITARIO_SEFAZ
-df_refrigerante$QTE_SEFAZ <- as.double(df_refrigerante$QTE_TRIB_AJUSTADO)
-df_refrigerante$VLR_UNITARIO_SEFAZ <- df_refrigerante$PROD_VPROD / df_refrigerante$QTE_SEFAZ
-df_refrigerante$QTE_TRIB_AJUSTADO <- NULL
-df_refrigerante$VUNTRIB_AJUSTADO <- NULL
-
-df_refri_nao_ajustado$QTE_TRIB_AJUSTADO <- NULL
-df_refri_nao_ajustado$VUNTRIB_AJUSTADO <- NULL
-
-df_refrigerante <- rbind(df_refrigerante,df_refri_nao_ajustado)
-rm(df_refri_nao_ajustado)
+######################################################### FIM PADROES QUANTIDADE #########################################################
+source("./SCRIPTS/AJUSTA_VOLUME_UNID_MED_REFRIGERANTE.R")
