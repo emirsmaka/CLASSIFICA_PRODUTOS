@@ -8,15 +8,6 @@
 ##  RESPONSAVEL: GERSON LUIZ DOS SANTOS                                      ##
 ###############################################################################
 
-#### CARREGA BIBLIOTECAS
-
-######## SEPARAR REFRIGERANTES (EXCLUI REGISTROS COM CPROD_REFRIGERANTE_SEFAZ == -9999999)
-df_nao_refrigerante <- df_refrigerante%>%
-  filter(CPROD_REFRIGERANTE_SEFAZ == -9999999)
-
-df_refrigerante <- anti_join(df_refrigerante,df_nao_refrigerante,by=c("IDNFE","DET_NITEM"))
-########################################################
-
 ### SEPARA REGISTROS COM VLAORES INTEIROS E ML EM XPROD
 id_ml <- grep("ml",df_refrigerante$PROD_XPROD,ignore.case = T)
 refri_ml <- df_refrigerante[id_ml,]
@@ -98,7 +89,7 @@ refri_sem_ajuste$PROD_XPROD_LIMPO <- refri_sem_ajuste$PROD_XPROD
 refri_sem_ajuste$PROD_XPROD_LIMPO <- str_replace_all(tolower(refri_sem_ajuste$PROD_XPROD_LIMPO),"\\(|\\)"," ")
 
 ### VOLUMES PADROES PARA LITRO E ML
-volume_ml <- c(250,290,269,510,500,600,350,355,310,237,300,660)
+volume_ml <- c(220,250,290,269,510,500,600,350,355,310,237,300,660,1500,2000)
 volume_litro <- c(1.5,2.5,3.0,2.0)
 ###################################
 
@@ -111,7 +102,7 @@ i2 <- grep("\\s\\d{3}(x|\\s)\\d{2}",refri_sem_ajuste$PROD_XPROD_LIMPO,ignore.cas
 df_i2 <- refri_sem_ajuste[i2,]
 refri_sem_ajuste <- anti_join(refri_sem_ajuste,df_i2,by=c("IDNFE","DET_NITEM"))
 #
-i3 <- grep("\\s\\d{3}",refri_sem_ajuste$PROD_XPROD_LIMPO,ignore.case = T)
+i3 <- grep("\\s\\d{3,4}",refri_sem_ajuste$PROD_XPROD_LIMPO,ignore.case = T)
 df_i3 <- refri_sem_ajuste[i3,]
 refri_sem_ajuste <- anti_join(refri_sem_ajuste,df_i3,by=c("IDNFE","DET_NITEM"))
 #
@@ -119,11 +110,9 @@ i4 <- grep("\\d\\,\\d",refri_sem_ajuste$PROD_XPROD_LIMPO,ignore.case = T)
 df_i4 <- refri_sem_ajuste[i4,]
 refri_sem_ajuste <- anti_join(refri_sem_ajuste,df_i4,by=c("IDNFE","DET_NITEM"))
 ########################################################################
-
-
 df_i1$VOLUME_TRIB_AJUSTADO <- str_extract(df_i1$PROD_XPROD,"\\s\\d{3}$")
 df_i2$VOLUME_TRIB_AJUSTADO <- str_extract(str_extract(tolower(df_i2$PROD_XPROD),"\\s\\d{3}(x|\\s)\\d{2}"),"\\d{3}")
-df_i3$VOLUME_TRIB_AJUSTADO <- str_extract(tolower(df_i3$PROD_XPROD),"\\s\\d{3}")
+df_i3$VOLUME_TRIB_AJUSTADO <- str_extract(tolower(df_i3$PROD_XPROD),"\\s\\d{3,4}")
 df_i4$VOLUME_TRIB_AJUSTADO <- str_extract(tolower(df_i4$PROD_XPROD),"\\d\\,\\d")
 ## CONCATENA DATAFRAMES
 df_i <- rbind(df_i1,df_i2,df_i3,df_i4)
@@ -133,20 +122,75 @@ df_i$VOLUME_TRIB_AJUSTADO <- str_replace(df_i$VOLUME_TRIB_AJUSTADO,",",".")
 df_i$VOLUME_TRIB_AJUSTADO <- as.double(df_i$VOLUME_TRIB_AJUSTADO)
 
 df_i$VOLUME_SEFAZ <- ifelse(df_i$VOLUME_TRIB_AJUSTADO %in% volume_ml | df_i$VOLUME_TRIB_AJUSTADO %in% volume_litro , df_i$VOLUME_TRIB_AJUSTADO,NA)
+df_i$VOLUME_SEFAZ <- ifelse(df_i$VOLUME_SEFAZ > 999, df_i$VOLUME_SEFAZ/1000,df_i$VOLUME_SEFAZ)
 df_i$UN_MEDIDA_SEFAZ <- ifelse(df_i$VOLUME_SEFAZ > 99,"ML","L")
-########################################################
+
 df_i$PROD_XPROD_LIMPO <- NULL
 refri_sem_ajuste$PROD_XPROD_LIMPO <- NULL
-df_refrigerante <- rbind(df_refri_ajustado,df_i)
+df_refri_ajustado <- rbind(df_refri_ajustado,df_i)
+########################################################
+
+#### PADROES PARA LITRO E ML NAO ENCONTRADOS ACIMA
+id_litro <- grep("\\dl",refri_sem_ajuste$PROD_XPROD,ignore.case = T)
+df_litro <- refri_sem_ajuste[id_litro,]
+refri_sem_ajuste <- anti_join(refri_sem_ajuste,df_litro,by=c("IDNFE","DET_NITEM"))
+df_litro$VOLUME_SEFAZ <- as.double(str_extract(str_extract(tolower(df_litro$PROD_XPROD),"\\dl"),"\\d"))
+df_litro$UN_MEDIDA_SEFAZ <- "L"
+
+id_ml <- grep("\\d{3}m",refri_sem_ajuste$PROD_XPROD,ignore.case = T)
+df_ml <- refri_sem_ajuste[id_ml,]
+refri_sem_ajuste <- anti_join(refri_sem_ajuste,df_ml,by=c("IDNFE","DET_NITEM"))
+df_ml$VOLUME_SEFAZ <- as.double(str_extract(str_extract(tolower(df_ml$PROD_XPROD),"\\d{3}m"),"\\d{3}"))
+df_ml$UN_MEDIDA_SEFAZ <- "ML"
+
+df_refri_ajustado <- rbind(df_refri_ajustado,df_litro,df_ml)
+rm(df_litro,df_ml,id_litro,id_ml)
+##################################################################
+
+
+
 ## ATRIBUI VALORES PARA COLUNAS VOLUME E UNID MEDIDA NAO IDENTIFICADOS
-refri_sem_ajuste$VOLUME_SEFAZ <- ifelse(is.na(refri_sem_ajuste$VOLUME_SEFAZ),"SEM VOLUME",refri_sem_ajuste$VOLUME_SEFAZ)
-refri_sem_ajuste$UN_MEDIDA_SEFAZ <- ifelse(is.na(refri_sem_ajuste$UN_MEDIDA_SEFAZ),"SEM UNIDADE MEDIDA",refri_sem_ajuste$UN_MEDIDA_SEFAZ)
+refri_sem_ajuste$VOLUME_SEFAZ <- -1
+refri_sem_ajuste$UN_MEDIDA_SEFAZ <- "NAO AJUSTADA"
 ##
-df_refrigerante <- rbind(df_refrigerante,refri_sem_ajuste,df_nao_refrigerante)
+df_refrigerante <- rbind(df_refri_ajustado,refri_sem_ajuste,df_nao_refri)
 df_refrigerante$VOLUME_TRIB_AJUSTADO <- NULL
 df_refrigerante$QTE_TRIB_AJUSTADO <- NULL
 df_refrigerante$VUNTRIB_AJUSTADO <- NULL
-rm(df_nao_refrigerante,df_i,volume_litro,volume_ml,df_refri_ajustado,refri_sem_ajuste)
+rm(df_nao_refri,df_i,volume_litro,volume_ml,df_refri_ajustado,refri_sem_ajuste)
 gc(reset = T)
 ######## FIM AJUSTES VOLUME E UNIDADE DE MEDIDA ########
+
+### CHAMA FUNCAO PARA AJUSTES EM COCA COLA KS/LS DA FEMSA (SPAL)
+df_refrigerante <- fn_cocacola(df_refrigerante)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 

@@ -217,12 +217,12 @@ df_refri_ajustado$VLR_UNITARIO_SEFAZ <- df_refri_ajustado$PROD_VPROD / df_refri_
 rm(df_emb,df_gr,id_emb,id_gr)
 gc(reset = T)
 ######################################################################################
-df_refrigerante <- rbind(df_refrigerante,df_nao_refri)
+##df_refrigerante <- rbind(df_refrigerante,df_nao_refri)
 df_refrigerante$FATOR_MULTIPLICADOR <- -1
 df_refrigerante$QTE_SEFAZ <- -1
 
 #### UNIFICA AS TABELAS
 df_refrigerante <- rbind(df_refrigerante,df_refri_ajustado)
-rm(df_refri_ajustado,df_nao_refri)
+rm(df_refri_ajustado)
 gc(reset = T)
 ######################################################### FIM PADROES QUANTIDADE #########################################################
