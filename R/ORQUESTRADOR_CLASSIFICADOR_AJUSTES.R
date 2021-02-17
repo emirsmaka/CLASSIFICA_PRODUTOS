@@ -13,7 +13,7 @@
 ###############################################################################
 
 ################################### CARREGA BIBLIOTECAS NECESSARIAS  ######################################
-
+library(plyr)
 library(dplyr)
 library(openxlsx)
 library(stringr)
@@ -31,7 +31,7 @@ setwd("C:/DADOS_R/Scripts")
 con_sql1670 <- dbConnect(odbc::odbc(), "SQL_s1670")
 con_sqls904 <- dbConnect(odbc::odbc(), "s904")
 
-con_Netezza <- RODBC::odbcConnect("nz1436",uid = "esmaka",pwd = "hqi588501")
+con_Netezza <- RODBC::odbcConnect("nz1436",uid = "esmaka",pwd = "@q158850i")
 
 df_nfe_diaria <- sqlQuery(con_sqls904,"SELECT * FROM [ugst_bebidas].[dbarantes].[TB_NFE_CLASSIFICADA]")
 delete_tb_sql <- "TRUNCATE TABLE s904 -> [ugst_bebidas].[dbarantes].[TB_NFE_CLASSIFICADA]"
@@ -39,46 +39,36 @@ delete_tb_sql <- "TRUNCATE TABLE s904 -> [ugst_bebidas].[dbarantes].[TB_NFE_CLAS
 
 ######################################### CRIA FUNCOES UTILIZADAS #########################################
 source("./R/FUNCOES_CALCULO.R")
-
+source("./SCRIPTS/FUNCOES/FN_AJUSTA_COLUNAS.R")
+source("./SCRIPTS/FUNCOES/FN_CRIA_COLUNAS.R")
 ################################# CRIA COLUNAS PARA AJUSTES E COLUNAS DE APOIO ############################
 df_nfe_diaria <- fn_cria_col(df_nfe_diaria)
-#df_nfe_diaria$QTE_TRIB_AJUSTADO <- as.character("")
-#df_nfe_diaria$VOLUME_TRIB_AJUSTADO <- as.character("")
-#df_nfe_diaria$VUNTRIB_AJUSTADO <- as.double(0.0000)
-#df_nfe_diaria$FATOR_MULTIPLICADOR <- as.double(0.0)
-#df_nfe_diaria$UNIDADE_SEFAZ <- as.character("UND")
-#df_nfe_diaria$VOLUME_SEFAZ <- as.double(0.0)
-#df_nfe_diaria$UN_MEDIDA_SEFAZ <- as.character("")
-
 ############################### FIM CRIA COLUNAS PARA AJUSTES E COLUNAS DE APOIO ##########################
 
 ######################################### SEPARAR PRODUTOS ############################################
 ## SEPARA  MILHO E SOJA
 df_milho <- df_nfe_diaria %>%
   filter(PROD_CPROD_SEFAZ_AJUSTADO == 10010221003 | PROD_CPROD_SEFAZ_AJUSTADO == 10020221002)
-
+df_milho$PROD_QCOM <- as.numeric(df_milho$PROD_QCOM)
 df_soja <- df_nfe_diaria%>%
   filter(PROD_CPROD_SEFAZ_AJUSTADO == 10010220001 | PROD_CPROD_SEFAZ_AJUSTADO == 10020220004)
-
+df_soja$PROD_QCOM <- as.numeric(df_soja$PROD_QCOM)
 ###################################
 
 ## BEBIDAS
-df_bebidas_nfe <- df_nfe_diaria%>%
-  filter(PROD_CPROD_SEFAZ_AJUSTADO != 10030440006 & PROD_CPROD_SEFAZ_AJUSTADO != 10030440008)
-
-df_refri <- df_nfe_diaria %>%
+df_refrigerante <- df_nfe_diaria %>%
   filter(PROD_CPROD_SEFAZ_AJUSTADO == 10030440006)
-
+df_refrigerante$PROD_QCOM <- as.numeric(df_refrigerante$PROD_QCOM)
 df_cerveja <- df_nfe_diaria %>%
   filter(PROD_CPROD_SEFAZ_AJUSTADO == 10030440008)
-
+df_cerveja$PROD_QCOM <- as.numeric(df_cerveja$PROD_QCOM)
 ###################################
 
 ## CARNES (ANIMAIS)
-subgrupo <- c(10020101,10020102,10010103,10020104,10020105,10010106,10010109,10010110,10010111)
+#subgrupo <- c(10020101,10020102,10010103,10020104,10020105,10010106,10010109,10010110,10010111)
 
-df_animais <- df_nfe_diaria %>%
-  filter(IDE_SUBGRUPO %in% subgrupo)
+#df_animais <- df_nfe_diaria %>%
+#  filter(IDE_SUBGRUPO %in% subgrupo)
 ######################################### FIM SEPARA PRODUTOS #########################################
 
 ################################# CHAMADA SCRIPTES CLASSIFICACAO E AJUSTES ############################
@@ -87,7 +77,8 @@ df_animais <- df_nfe_diaria %>%
 
 source("./AJUSTA_MILHO.R")
 source("./AJUSTA_SOJA.R")
-source("./AJUSTA_VOLUME_UNID_MED_REFRIGERANTE.R")
+source("./SCRIPTS/REFRIGERANTE/AJUSTA_QTDE_FATOR.R")
+source("./SCRIPTS/CERVEJA/AJUSTA_QTDE_FATOR.R")
 #########################################
 
 

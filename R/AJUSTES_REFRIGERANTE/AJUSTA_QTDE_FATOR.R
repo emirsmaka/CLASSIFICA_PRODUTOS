@@ -8,13 +8,6 @@
 ##  RESPONSAVEL: GERSON LUIZ DOS SANTOS                                      ##
 ###############################################################################
 
-setwd("C:/DADOS_R/Scripts")
-library(dplyr)
-library(data.table)
-library(bit64)
-library(stringr)
-library(RODBC)
-
 #### CRIA COLUNAS DE APOIO
 df_refrigerante <- fn_cria_colunas(df_refrigerante)
 df_refrigerante$PROD_QCOM <- as.numeric(df_refrigerante$PROD_QCOM)

@@ -1,0 +1,16 @@
+
+
+df_milho_soja_class <- dbGetQuery(conn_Netezza,"SELECT T0.CON_CNPJ_CPF, T1.IDNFE, T1.DET_NITEM,T1.PROD_NCM_POSICAO,
+SQLKIT..regexp_replace(T1.PROD_XPROD,'A','A') AS PROD_XPROD
+FROM TRIBUTARIO_REFERENCIA.ADMIN.CONTRIBUINTE T0
+ LEFT JOIN TRIBUTARIO_REFERENCIA.ADMIN.NFE T1 ON T0.CON_CNPJ_CPF = T1.EMIT_CNPJ_CPF
+ WHERE (T1.IDE_DHEMI_PERIODO BETWEEN 201501 AND 201912) AND
+       T0.CAE_CODIGO IN ('18','123','454','548','500') AND
+       T1.PROD_NCM_POSICAO IN ('1201','1005')",believeNRows=FALSE)
+
+
+df_soja_group <- df_milho_soja_class%>%
+  filter(PROD_NCM_POSICAO == "1201")%>%
+  group_by(PROD_XPROD)%>%
+  summarise(TOTAL = n())%>%
+  arrange(desc(TOTAL))

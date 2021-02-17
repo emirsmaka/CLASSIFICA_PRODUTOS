@@ -13,7 +13,7 @@
 id_kg <- grep("k(\\.)?g(\\.)?|kil[o|0](s)?",df_milho$PROD_UCOM,ignore.case = T)
 df_kg <- df_milho[id_kg,]
 #
-########### UNIDADE == KG ###########  
+########### UNIDADE == KG ###########
 df_kg$VLR_UNITARIO_SEFAZ <- round(df_kg$PROD_VUNCOM, digits = 6)
 df_kg$QTE_SEFAZ <- df_kg$PROD_QCOM
 df_kg$UNIDADE_SEFAZ <- "KG"
@@ -25,7 +25,7 @@ df_outros <- anti_join(df_milho,df_kg, by = c("IDNFE","DET_NITEM"))
 
 ############ FIM UNIDADE == KG ############
 
-############ AJUSTES PARA UNIDADE == TON ############ 
+############ AJUSTES PARA UNIDADE == TON ############
 id_ton <- grep("ton(\\s)?$|^to$|^t$|tn(\\s)?$", df_outros$PROD_UCOM,ignore.case = T)
 df_ton <- df_outros[id_ton,]
 ## CALCULA VALORES COMPLEMENTARES UNIDADE = TONELADA
@@ -37,11 +37,11 @@ df_ton$UNIDADE_SEFAZ <- "KG"
 ## INSERE UN == TONELADAS EM AJUSTADOS
 df_milho_ajustado <- rbind(df_ton,df_milho_ajustado)
 
-############ FIM UNIDADE == TONELADA ############ 
+############ FIM UNIDADE == TONELADA ############
 
 #########################################
 
-############ CALCULA VALORES SEFAZ EXTRAINDO PESO DE XPROD ############ 
+############ CALCULA VALORES SEFAZ EXTRAINDO PESO DE XPROD ############
 
 ## RETIRAR TONELADAS DE MILHO_OUTROS
 df_outros <- anti_join(df_outros,df_ton, by = c("IDNFE","DET_NITEM"))
@@ -59,9 +59,9 @@ df_milho_ajustado <- rbind(df_milho_ajustado,df_milho_peso)
 ## RETIRAR PESO(XPROD) DE MILHO_OUTROS
 df_outros <- anti_join(df_outros,df_milho_peso, by = c("IDNFE","DET_NITEM"))
 
-############ FIM CALCULO PESO(XPROD) ############ 
+############ FIM CALCULO PESO(XPROD) ############
 
-############ CALCULA VALORES COMPLEMENTARES UNIDADE = SACAS ############ 
+############ CALCULA VALORES COMPLEMENTARES UNIDADE = SACAS ############
 ## Ajusta Colunas
 id_sc <- grep("sc(.)?[o]?$|^sa(c)?$|scs$|sac[a|o](s)?$|s(c)?(.)?(\\d{1,2})",df_outros$PROD_UCOM,ignore.case = T)
 df_sc <- df_outros[id_sc,]
@@ -75,16 +75,16 @@ df_sc$QTE_SEFAZ[id_peso] <- as.double(str_extract(df_sc$PROD_UCOM[id_peso],"\\d{
 # da analise abaixo:                                                                         #
 #                                                                                            #
 # > df_sc%>%                                                                                 #
-#  + filter(PROD_QCOM != 0 & QTE_SEFAZ == 0)%>%                                         #
+#  + filter(PROD_QCOM != 0 & QTE_SEFAZ == 0)%>%                                              #
 #  + group_by(PROD_UCOM)%>%                                                                  #
 #  + summarise(TOTAL=n())%>%                                                                 #
 #  + arrange(desc(TOTAL))                                                                    #
 #                                                                                            #
-#  PROD_UCOM   TOTAL                                                                         # 
+#  PROD_UCOM   TOTAL                                                                         #
 #  <fct>       <int>                                                                         #
 #  1 SC        33761                                                                         #
 #  2 sc         2184                                                                         #
-#  3 SC1         788                                                                         #  
+#  3 SC1         788                                                                         #
 #  4 SCS         249                                                                         #
 #  5 Sc           90                                                                         #
 #  6 SACO         22                                                                         #
@@ -115,7 +115,7 @@ df_milho_ajustado <- rbind(df_milho_ajustado,df_sc)
 ## RETIRAR SACAS DE MILHO_OUTROS
 df_outros <- anti_join(df_outros,df_sc, by = c("IDNFE","DET_NITEM"))
 
-########### FIM UNIDADE == SACAS ########### 
+########### FIM UNIDADE == SACAS ###########
 
 #### LIMPA MEMORIA ####
 rm(df_kg,df_milho_peso,df_sc,df_ton,id_kg,id_peso,id_ton,id_sc)
@@ -146,7 +146,7 @@ df_1 <- fn_sve_ext(df_1)
 df_2 <- fn_sve_ext(df_2)
 df_milho_kg_ajustado <- rbind(df_1,df_2)
 
-########### FIM CALCULOS ########### 
+########### FIM CALCULOS ###########
 
 #### LIMPA MEMORIA ####
 rm(df_1,df_2,df_medias_1,df_medias_2,id_out_1,id_out_2)

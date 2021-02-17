@@ -8,19 +8,6 @@
 ##  RESPONSAVEL: GERSON LUIZ DOS SANTOS                                      ##
 ###############################################################################
 
-library(dplyr)
-library(openxlsx)
-library(data.table)
-library(bit64)
-library(RODBC)
-library(stringr)
-
-df_cerveja <- fread("./DADOS/nfe_cerveja2019e20.csv")
-source("./SCRIPTS/FUNCOES/FN_AJUSTA_COLUNAS.R")
-source("./SCRIPTS/FUNCOES/FN_CRIA_COLUNAS.R")
-
-df_cerveja <- fn_cria_colunas(df_cerveja)
-
 ## RETIRA PRODUTO TIPO CHOPP
 df_chopp <- df_cerveja%>%
   filter(CPROD_CERVEJA_SEFAZ == 4000899)
