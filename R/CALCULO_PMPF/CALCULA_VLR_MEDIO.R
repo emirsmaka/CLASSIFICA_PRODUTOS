@@ -18,7 +18,7 @@ fn_preco_medio <- function(tb_bebida){
   
   df_pmpf_nfce <- tb_pmpf_nfce%>%
     distinct(IDE_DHEMI_PERIODO,PROD_CEANTRIB,VLR_PMPF_CALCULADO_NFCE)
-  
+   
   #### RELACIONA PRODUTOS COM PMPF CALCULADO PELA NFCE COM TABELA DO SISTEMA PMPF
   df_pmpf_nfce <- rename(df_pmpf_nfce, CEANTRIB_NFCE = 'PROD_CEANTRIB')
   tb_pmpf_nfce <- inner_join(df_pmpf_nfce,df_pmpf_bebidas,by="CEANTRIB_NFCE")

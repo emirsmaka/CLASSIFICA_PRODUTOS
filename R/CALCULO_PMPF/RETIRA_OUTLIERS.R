@@ -20,6 +20,6 @@ fn_outliers <- function(tb_bebida){
   df_out_true <- tb_outlier%>%
     filter(OUT == TRUE)
   x <- anti_join(tb_outlier,df_out_true,by="OUT")
-  return(x)
+  
 }
 #################################################

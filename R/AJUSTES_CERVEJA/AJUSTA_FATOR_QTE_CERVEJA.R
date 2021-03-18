@@ -10,7 +10,7 @@
 
 ## RETIRA PRODUTO TIPO CHOPP
 df_chopp <- df_cerveja%>%
-  filter(CPROD_CERVEJA_SEFAZ == 4000899)
+  filter(CPROD_CERVEJA_SEFAZ == 4000899 | CPROD_CERVEJA_SEFAZ == -9999999)
 df_cerveja <- anti_join(df_cerveja,df_chopp,by=c("IDNFE","DET_NITEM"))
 ############################################
 
@@ -59,12 +59,10 @@ df_sx$QTE_SEFAZ <- df_sx$PROD_QCOM * df_sx$FATOR_MULTIPLICADOR
 
 df_cerv_ajustada <- rbind(df_sx,df_cx,df_undd,df_un,df_dz)
 
-
 ############################ FIM PADRAO COM QTDE IDENTIFICADA EM PROD_UCOM ############################
-rm(id_cx,id_sx,df_cx,df_sx,id_undd,df_undd,df_un,df_dz,fator)
+rm(id_cx,id_sx,df_cx,df_sx,id_undd,id_dz,df_undd,df_un,df_dz,fator)
 gc(reset = T)
 #######################################################################################################
-
 
 ############################ PADROES Q IDENTIFICAM A QTDE REAL ENCONTRADOS EM PROD_XPROD ############################
 
@@ -101,15 +99,13 @@ df_un$FATOR_MULTIPLICADOR <- p1*p2
 df_un$QTE_SEFAZ <- df_un$FATOR_MULTIPLICADOR * df_un$PROD_QCOM
 ######################################################
 
-
 #### PADRAO COM QTDE EM XPROD -> C/DD
 id_cdd <- grep("\\sc\\/\\s?\\d{1,4}",df_cerveja$PROD_XPROD,ignore.case = T)
 df_cdd <- df_cerveja[id_cdd,]
 df_cerveja <- anti_join(df_cerveja,df_cdd,by=c("IDNFE","DET_NITEM"))
 df_cdd <- fn_ajusta_colunas(df_cdd,"\\sc\\/\\d{1,4}","\\d{1,4}")
-rm(id_cdd,id_dz,id_un)
+rm(id_cdd,id_un)
 ######################################################
-
 
 #### PADRAO EM PROD_XPROD ONDE A QTE SUCEDE O TERMO "CX" ####
 id_cx <- grep("cx\\s?\\d{1,2}",df_cerveja$PROD_XPROD,ignore.case = T)
@@ -121,7 +117,6 @@ id_qte <- grep("\\d{1,2}\\s?x\\s?\\d{3,4}",df_cerveja$PROD_XPROD,ignore.case = T
 df_qte <- df_cerveja[id_qte,]
 df_cerveja <- anti_join(df_cerveja,df_qte,by=c("IDNFE","DET_NITEM"))
 
-
 #### PADROES DIVERSOS PARA QTE EM XPROD ####
 id_pdr <- grep("(pc(t)?(\\s)?\\d{2}$|\\d{1,2}\\s?u(n)?|c(x)?[[:punct:]]\\d{1,2})",df_cerveja$PROD_XPROD,ignore.case = T)
 df_pdr <- df_cerveja[id_pdr,]
@@ -131,8 +126,6 @@ df_cerveja <- anti_join(df_cerveja,df_pdr,by=c("IDNFE","DET_NITEM"))
 id_emb <- grep("\\d{1,2}\\s?x\\s?\\d{1,2}",df_cerveja$PROD_XPROD,ignore.case = T)
 df_emb <- df_cerveja[id_emb,]
 df_cerveja <- anti_join(df_cerveja,df_emb,by=c("IDNFE","DET_NITEM"))
-
-
 
 #### AJUSTA COLUNAS ####
 df_qte <- fn_ajusta_colunas(df_qte,"\\s?\\d{1,2}\\s?x","\\d{1,2}")
@@ -146,7 +139,7 @@ df_emb$FATOR_MULTIPLICADOR <- as.numeric(ifelse(p1_emb>p2_emb,p1_emb,p2_emb))
 df_emb$QTE_SEFAZ <- df_emb$FATOR_MULTIPLICADOR * df_emb$PROD_QCOM
 ##
 df_cerv_ajustada <- rbind(df_cerv_ajustada,df_qte,df_cx,df_pdr,df_emb,df_six,df_cdd,df_un)
-rm(df_qte,df_cx,df_pdr,df_emb,id_cx,id_emb,id_pdr,id_qte,p1_emb,p2_emb,df_six,patt,df_cdd,df_un,p1,p2,id_un)
+rm(df_qte,df_cx,df_pdr,df_emb,id_cx,id_emb,id_pdr,id_qte,p1_emb,p2_emb,df_six,patt,df_cdd,df_un,p1,p2)
 gc(reset = T)
 
 ## OUTROS PADROES ##
@@ -166,4 +159,4 @@ df_cerveja$VLR_UNITARIO_SEFAZ <- df_cerveja$PROD_VPROD / df_cerveja$QTE_SEFAZ
 rm(df_padroes,id_padroes,df_cerv_ajustada,padroes,fn_ajusta_colunas,fn_cria_colunas)
 gc(reset = T)
 ##################### FIM DE AJUSTES DAS COLUNAS FATOR_MULTIPLICADOR/QTE_SEFAZ/VLR_UNITARIO_SEFAZ #####################
-source("./SCRIPTS/AJUSTES_VOLUME_UNID_MED_CERVEJA.R")
+source("./SCRIPTS/CERVEJA/AJUSTES_VOLUME_UNID_MED_CERVEJA.R")

@@ -18,17 +18,13 @@ fn_preco_medio <- function(tb_bebida){
   
   df_pmpf_nfce <- tb_pmpf_nfce%>%
     distinct(IDE_DHEMI_PERIODO,PROD_CEANTRIB,VLR_PMPF_CALCULADO_NFCE)
-  
-  #### RELACIONA PRODUTOS COM PMPF CALCULADO PELA NFCE COM TABELA DO SISTEMA PMPF
-  df_pmpf_nfce <- rename(df_pmpf_nfce, CEANTRIB_NFCE = 'PROD_CEANTRIB')
-  tb_pmpf_nfce <- inner_join(df_pmpf_nfce,df_pmpf_bebidas,by="CEANTRIB_NFCE")
-  
-  tb_pmpf_nfce <- tb_pmpf_nfce%>%
-    select(IDE_DHEMI_PERIODO, CEANTRIB_NFCE,CODIGO_PMPF,DESCRICAO_PROD_PMPF,VOLUME_PMPF,UNID_MEDIDA_PMPF
+   
+  df_pmpf_nfce <- df_pmpf_nfce%>%
+    select(IDE_DHEMI_PERIODO, PROD_CEANTRIB,CODIGO_PMPF,DESCRICAO_PROD_PMPF,VOLUME_PMPF,UNID_MEDIDA_PMPF
            ,VLR_PMPF_CALCULADO_NFCE)
   
   tb_valor_medio_bebidas <- tb_pmpf_nfce%>%
-    group_by(CEANTRIB_NFCE)%>%
+    group_by(PROD_CEANTRIB)%>%
     mutate(VLR_MEDIO_TRIMESTRAL = mean(VLR_PMPF_CALCULADO_NFCE))
   return(tb_valor_medio_bebidas)
 }
