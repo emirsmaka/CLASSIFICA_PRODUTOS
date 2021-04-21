@@ -21,6 +21,3 @@ fn_limpa_xprod_2 <- function(x){
   #x$CPROD_CERVEJA_SEFAZ <- as.factor(x$CPROD_CERVEJA_SEFAZ)
   return(x)
 }
-
-
-#03.011.00#2202.10.00#Guarana
